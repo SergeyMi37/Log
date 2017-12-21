@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Routine name="App.LogMacro" type="INC"><![CDATA[
+#define StackPlace 		$st($st(-1),"PLACE")
+#define CurrentClass 	##Expression($$$quote(%classname))
+#define CurrentMethod 	##Expression($$$quote(%methodname))
+
+#define MethodArguments ##Expression(##class(App.Log).GetMethodArguments(%classname,%methodname))
+
+#define LogEvent(%type, %message) Do ##class(App.Log).AddRecord($$$CurrentClass,$$$CurrentMethod,$$$StackPlace,%type,$$$MethodArguments,%message)
+#define LogNone(%message) 		$$$LogEvent("NONE", %message)
+#define LogError(%message) 		$$$LogEvent("ERROR", %message)
+#define LogFatal(%message) 		$$$LogEvent("FATAL", %message)
+#define LogWarn(%message) 		$$$LogEvent("WARN", %message)
+#define LogInfo(%message) 		$$$LogEvent("INFO", %message)
+#define LogStat(%message) 		$$$LogEvent("STAT", %message)
+#define LogDebug(%message) 		$$$LogEvent("DEBUG", %message)
+#define LogRaw(%message) 		$$$LogEvent("RAW", %message)
+
+#; Получить дату и время из $h
+#define LoggedDT(%h) $s(%h[",":$tr($zd(%h,4),"/",".")_" "_$zt(+$p(%h,",",2),1),1:"")
+
+#; макрос сохраняет в узле глобала стэк вызовов и все локальные переменные 
+#; Пример применения: /csp/log/App.LogInfo.cls?WHAT=?
+#; Если нужна ловушка для конкретного процесса, то присвоить s ^logFIO(0)=Номер процесса
+#define LogEventAddGN(%debubGN, %message) s %AppLogId=##class(App.Log).AddRecord($$$CurrentClass,$$$CurrentMethod,$$$StackPlace,"DEBUG",%debubGN,%message)
+#define logdevGN 	"^log"
+#define MgtPortalSettings 	"^CacheTemp.MgtPortalSettings"
+#define AppLog(%dev,%node,%list,%mode) s zsr=$zr,zsG=$$$logdevGN_%dev  if $g(@zsG@(0))=$j||($g(@zsG@(0))="") { s @zsG@(1,$i(@zsG),%node)=%list,zsGzr=$zr if %mode["t" { $$$LogEventAddGN(zsGzr,%list) } if %mode["s" {s zsG=$na(@($qs(zsGzr,0)_"stack")@($qs(zsGzr,2))),@zsG=$lb($ze,$h,$tl,$io,$j,$zu(110),##class(App.LogInfoPane).GetPathStack(),##class(App.Log).GetClientAddress()) S zs1="",zsG=$na(@zsG@("varList")),zsii=0 k @zsG s:%mode["e" @zsG@("%%%$$LOG^%ETN")=$$LOG^%ETN  if %mode["v" { f { s zs1=$O(@zs1) q:zs1=""  continue:$e(zs1,1,2)="zs"&&(zs1'="zs")  if $d(@zs1)'["0",$isobject(@zs1) { s @zsG@(zs1)=##class(App.Log).SerializeObject(@zs1,$na(@zsG@(zs1))),zsii=zsii+1 } elseif $d(@zs1)>9 {s:$d(@zs1)=11 @zsG@(zs1)=@zs1,zsii=zsii+1 MERGE @zsG@(zs1)=@zs1 if zs1="%zlog" {s zs2="" for {s zs2=$o(@zs1@(zs2)) q:zs2=""   s @zsG@(zs1,zs2)=##class(App.Log).SerializeObject($G(@zs1@(zs2)),$na(@zsG@(zs1,zs2)),%mode)   }}}	 elseif $d(@zs1)=1 {s @zsG@(zs1)=@zs1,zsii=zsii+1}} s @zsG=zsii KILL zsii,zsG,zs1,zs2}else{KILL zsii,zsG,zs1,zs2,zsGzr}} try{ if $d(@zsr) KILL zsr} catch e { KILL zsr}}
+]]></Routine>
+</Export>

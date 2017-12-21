@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.AutoPage">
+<Description>
+Updated at 12/08/2017 16:19:10</Description>
+<Super>%CSP.Util.AutoPage</Super>
+<TimeCreated>64621,43886.94639</TimeCreated>
+
+<Parameter name="DOMAIN">
+<Description>
+Default Localization Domain</Description>
+<Default>portalutils</Default>
+</Parameter>
+
+<Parameter name="ERRORPAGE">
+<Description>
+Specify a custom error page to call if there are any problems with generating this page.
+If this is not specified it will use the default error page specified for this CSP
+application, and if this is not specified it will use the system default error page.
+For example this could be set to '/csp/samples/error.csp' to display the sample error
+page.</Description>
+<Default>App.errorpage.cls</Default>
+</Parameter>
+
+<Parameter name="STYLESHEET">
+<Description>
+Name of the external style sheet file</Description>
+<Default>intersystems.css</Default>
+</Parameter>
+
+<Method name="OnCompile">
+<Internal>1</Internal>
+<ClassMethod>1</ClassMethod>
+<CodeMode>generator</CodeMode>
+<ServerOnly>1</ServerOnly>
+<Implementation><![CDATA[
+	s tSC=$$$OK
+	// Пропускаем проверку, если компилируется класс-шаблон
+	s isTemplate=%class="App.AutoPage"
+	q:isTemplate $$$OK
+	
+	s cspurl=%class_".cls"
+	s pvalue=$$$comMemberKeyGet(%class,$$$cCLASSparameter,"CSPURL",$$$cPARAMdefault)
+	i (pvalue'=cspurl) {
+		$$$defMemberKeySet(%class,$$$cCLASSparameter,"CSPURL",$$$cPARAMdefault,cspurl)
+		s updateClass=##class("%Dictionary.ClassDefinition").%OpenId(%class)
+		s updateClass.Modified=0
+		d updateClass.%Save()
+		d updateClass.%Close()
+ 	}
+
+	f param="PAGENAME","PARENTPAGE" {
+		s pvalue=$$$comMemberKeyGet(%class,$$$cCLASSparameter,param,$$$cPARAMdefault)
+		i (pvalue="") {
+			$$$defMemberKeySet(%class,$$$cCLASSparameter,param,$$$cPARAMdefault," ")
+			s updateClass=##class("%Dictionary.ClassDefinition").%OpenId(%class)
+			s updateClass.Modified=0
+			d updateClass.%Save()
+			d updateClass.%Close()
+	 	}
+	}
+	q tSC
+]]></Implementation>
+</Method>
+
+<Method name="GetTitlePane">
+<ClassMethod>1</ClassMethod>
+<CodeMode>objectgenerator</CodeMode>
+<FormalSpec>pInstance:%CSP.Util.PageInstance</FormalSpec>
+<ReturnType>%CSP.Util.Pane</ReturnType>
+<Implementation><![CDATA[
+	Do %code.WriteLine(" Set tPane = ##class(%CSP.Util.SMTitlePane).%New()")
+	Do %code.WriteLine(" Set tPane.Text =  $$$Text("""_$G(%parameter("PAGENAME"),"N/A")_""")")
+	Do %code.WriteLine(" Quit tPane")
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetDetailPane">
+<Description>
+Get the detail pane info object</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pInstance:%CSP.Util.PageInstance</FormalSpec>
+<ReturnType>%CSP.Util.Pane</ReturnType>
+<Implementation><![CDATA[
+	Set tDetailPane = ""
+	Quit tDetailPane
+]]></Implementation>
+</Method>
+
+<Method name="OnPage">
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[	Quit ..DrawHTML()
+]]></Implementation>
+</Method>
+</Class>
+</Export>

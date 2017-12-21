@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.LogInfo">
+<Description>
+Updated at 12/08/2017 16:09:03</Description>
+<Super>App.AutoPage</Super>
+<TimeCreated>64621,44286.491046</TimeCreated>
+
+<Parameter name="CSPURL">
+<Default>App.LogInfo.cls</Default>
+</Parameter>
+
+<Parameter name="PAGENAME">
+<Default>Протоколирование</Default>
+</Parameter>
+
+<Parameter name="PARENTPAGE">
+<Default>App.AutoPage.cls</Default>
+</Parameter>
+
+<Method name="GetDetailPane">
+<Description>
+Get the detail pane info object</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pInstance:%CSP.Util.PageInstance</FormalSpec>
+<ReturnType>%CSP.Util.Pane</ReturnType>
+<Implementation><![CDATA[	quit ##class(App.LogInfoPane).%New()
+]]></Implementation>
+</Method>
+</Class>
+</Export>

@@ -1,3 +1,6 @@
-/App/Log.inc
-App.Log.CLS
-App.Use.CLS
+App.AutoPage.cls
+App.Log.cls
+App.LogInfo.cls
+App.LogInfoPane.cls
+App.LogMacro.inc
+App.Use.cls

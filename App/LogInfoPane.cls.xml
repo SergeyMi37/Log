@@ -1,0 +1,595 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.LogInfoPane">
+<Description>
+Updated at 12/08/2017 16:09:03</Description>
+<IncludeCode>App.LogMacro</IncludeCode>
+<Super>%CSP.Util.Pane</Super>
+<TimeCreated>64621,44280.911124</TimeCreated>
+
+<Parameter name="MAXNODES">
+<Description>
+Ограничение количества узлов для вывода</Description>
+<Default>10000</Default>
+</Parameter>
+
+<Method name="DrawBODY">
+<Description>
+Отрисовка формы для ввода информации об объекте</Description>
+<FormalSpec>pInstance:PageInstance</FormalSpec>
+<PublicList>nsp,what,field,value,type,typeclass,caption</PublicList>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set $ZT="errors"
+	set nsp=%request.Get("NSP"),what=$zstrip(%request.Get("WHAT"),"<>WC")
+	if nsp'="" try {zn nsp set NSpace=nsp } catch e {}
+	set NSpace=$zu(5)
+	set Next=%request.Get("Next"),Filtr=%request.Get("Filtr")
+	$$$AppLog("MSW","next",$lb(Next,Filtr),"svetadwp")
+	set:Next="" Next=1
+	set MaxNode=%request.Get("MaxNode") 
+	if 'MaxNode set MaxNode=..#MAXNODES
+	set:$e(what,*)="-" what=$e(what,1,*-1),exp="-"
+	set:$e(what,*)="+" what=$e(what,1,*-1),Next="-1"
+	if $p(what,"-p",2)?1n.n set exp=$p(what,"-p",2),what=$p(what,"-p")
+	if (what["^"),what'="^" {
+		set gn=""
+		if $e(what)="^" { set gn=what }
+	}
+	elseif what="?" {
+		do ..GetHelp(.%help)
+		set gn="%help",what=""
+	}
+	#; SQL запрос
+	if ($zconvert($p(what," ",1),"L")="select") {
+			set sql=what
+	}
+	#; SQL запрос по таблице 
+	if $e($zconvert($p(what," ",1),"L"),1,3)="log" {
+		#; Удалить таблицу протокола
+		if $g(exp)="-" Do ##class(App.Log).%KillExtent() set msg=" Очистили протокол App.Log"
+		set (what,sql)="select * FROM App.Log order by id desc"
+	}
+	#; Описание класса или экземпляра класса
+	if $zconvert($p(what,"(",1),"L")["##class" {
+		set classname=$p($p(what,"(",2),")",1)
+		set id=$p($p(what,"%OpenId(",2),")",1) set:id[$c(34) id=$tr(id,$c(34))
+		try {set Obj=$classmethod(classname,"%OpenId",id)
+			if $isobject(Obj) {
+				do ##class(App.LogInfoPane).GetClassDef(classname,Obj,.out)
+	 			if $e(what)'="=" {
+		 			do ##class(App.LogInfoPane).GetValueObj(Obj,.out,.out) m %obj(id)=out
+	 			}
+	 			else {
+		 			 do ##class(App.LogInfoPane).GetValueObj(Obj,.out,.res) m %obj(id)=res
+	 			}
+	 			// TODO получить узел глобала хранения и присвоить в %obj
+	 			//	 	разбор строк на ссылки Class Ref
+	 			// 		Рекурсия по свойствами, если они тоже объекты
+			} else { d ##class(App.LogInfoPane).GetClassDef(classname,"",.out)
+				merge %obj=out
+			}
+			set gn="%obj"
+		} catch e {set gn="%err",%err=$zconvert($ze,"O","HTML")
+		}
+	}
+
+	set title="Получить справку ?"
+	set ver=""
+	// Получить список областей
+	s listNs=##class(utl.sys).ListNS(.info)
+	s selectNS="<SELECT title=""Область"" name=""NSP"" id=""NSP""  ONCHANGE=""document.forms['loginfo'].submit();""><OPTION>Выбор области</OPTION> "
+	for ns=1:1:$l(listNs,",") { continue:$p(listNs,",",ns)=""
+		continue:$p(listNs,",",ns)["%"
+  		s selected=$select(NSpace=$p(listNs,",",ns):"selected",1:"")
+  		s selectNS=selectNS_" <OPTION "_selected_" VALUE="""_$p(listNs,",",ns)_""">"_$p(listNs,",",ns)_"</OPTION>"
+	}
+	s selectNS=selectNS_"</SELECT>"
+	&html<
+		<form name="loginfo" id="loginfo">
+		<table width="90%" border="1" cellpadding="2" cellspacing="0" class="DetailTable" bgcolor="#c4d6d6" >
+		<tr>
+			<td>#("Server: <font color=red>"_$zu(110)_"</font> $JOB: <font color=red>"_$j_"</font> $ZV: "_$zv)#
+			</td>
+		</tr>
+		<tr>
+			<td>
+				#(selectNS)# 
+			</td>
+		</tr>
+		<tr> 
+			<td>
+				#($$AddExp(title,what,$g(Next),$g(Filtr),$g(MaxNode)))#
+			</td>
+		</tr>
+		<tr>
+			<td>
+				<input type="submit" name="show" id="show" value="Показать">
+				<input type="button" name="clearNSP" onclick="document.getElementById('WHAT').value='?';document.forms['loginfo'].submit();" id="clearNSP" value="?" size="100%" placeholder="clearNSP" title="Иструкция">
+			</td></tr>
+		</table>
+		</form>
+	>
+	set obj=""
+	;произвольный запрос 
+	if $g(sql)'="" {
+		set st=..DrawSQL(sql,MaxNode,NSpace,"В области "_NSpace_" "_$g(msg))
+		if $$$ISERR(st) write "<br>Ошибка запроса :"_##class(%CSP.Page).EscapeHTML(sql_"; "_$SYSTEM.OBJ.DisplayError(st))_"<br>"
+	}
+	#; Если выводим глобал
+	elseif $G(gn)'="" {
+		; Проверяем есть ли запись о стэке
+		if $e(gn,1,4)=($$$logdevGN)||($e(gn,1,6)=("^mtemp")) {
+			set:gn[$$$logdevGN stackGN=($$$logdevGN)_$e(gn,5,7)_"stack"
+			set:gn["mtemp" stackGN=("^mtemp")_$e(gn,7,9)_"stack"	
+			if $e($g(exp))="-" {
+				set jo=$g(@gn@(0)) KILL @gn,exp,@stackGN set:jo @gn@(0)=jo  
+			}
+			#; чиска и инициализация узла изоляции отладки
+			if $g(exp)?1n.n set job=exp KILL @gn@(1) if job,$d(^$j(+job)) set @gn@(0)=+job
+			if gn["stack(",$qs(gn,1)?1n.n,$g(@gn)'="",$lv(@gn) {
+				;$ze,$h,$tl,$io,$j,$zu(110),stack,ipRemote
+				set stack=$lfs($lg(@gn,7),"|")
+				&html<
+				<h1>Просмотр стэка : #(gn)# <font color=red>$ze:</font> #($lg(@gn,1))#<font color=red> $h: </font>#($$$LoggedDT($lg(@gn,2)))#<font color=red> $tl: </font>#($lg(@gn,3))#<font color=red> $io: </font>#($lg(@gn,4))#<font color=red> $j: </font>#($lg(@gn,5))#<font color=red>  $zu(110):</font> #($lg(@gn,6))# <font color=red> IP-Adress: </font> #($lg(@gn,8))#</h1>
+				<table border="1" cellpadding="2" cellspacing="0" class="DetailTable" bgcolor="#c4d6d6" ><tbody>
+				<tr>
+					<th align="left" width="5px">#</th>
+					<th align="left" width="50px">Ссылка на код</th>
+					<th align="left" width="50px">Строка кода</th>
+				</tr>
+				>
+				for line2=2:1:$ll(stack) {
+					set line=$lg(stack,line2)
+					try {	set code=$t(@$p(line," ")) }
+					catch {	set code=""	}
+					quit:code["s zsr=$zr,zsG=" ;не выводим саму ловушку
+					&html<
+					<tr>
+						<td>#(line2)#</td>
+						<td>#(line)#</td>
+						<td>#(code)#</td>
+					</tr>
+					>
+				}
+				&html<</table>>
+				set gn=$q(@gn)
+			}
+		} 
+			&html<
+			<h1>Просмотр массива : #(gn_" в области "_$zu(5))#</h1>
+			<table width="90%" border="1" cellpadding="2" cellspacing="0" class="DetailTable" bgcolor="#c4d6d6" ><tbody>
+			<tr>
+				<th align="left" width="1%">#</th>
+				<th align="left" width="9%">Ссылка</th>
+				<th align="left" width="*">Данные</th>
+			</tr>
+			>
+			set (igg,ig)=gn
+			set count=0,test=0
+			#; Первая строчка
+			if ig'="",$g(@ig)'="" d ..DrawNodeGN(ig,@ig,.count,,ig,$g(NSpace))
+  			// Для локальных процентных массивов просмотр - прямой
+  			set next=$s($e(gn,1)="%":1,Next["-1":-1,1:1)
+  			if MaxNode<..#MAXNODES set MaxNode=..#MAXNODES
+  			if $g(next)=-1 {	
+  				for count2=1:1 { set ig=$q(@ig) quit:ig=""||(ig'[$e(igg,1,*-1))  set iglast=ig 
+  					Quit:count2>(MaxNode*2) ##; Удвоенное ограничение
+  				}
+  				if $g(iglast)'="" set ig=iglast
+  			}
+  			if ig'="" {
+	  			for { set ig=$q(@ig,$g(next)) quit:ig=""||(ig'[$e(igg,1,*-1))
+	  				if $g(Filtr)'="" continue:$$ExpTestFiltr(ig,Filtr)
+	  				set node=$e($p(ig,$e(igg,1,*-1),2),2,*)
+					do ..DrawNodeGN(node,@ig,.count,$g(job),ig,$g(NSpace))
+					Quit:count>MaxNode
+	  			}
+  			}
+  			&html<</table>>
+		}
+	elseif (nsp'="")!(what'="") {
+		&html<<center><b>Объект не найден</b></center>>
+	}
+	write "<br><br>"
+	quit $$$OK
+	//Дополнительные пораметры
+AddExp(title,gn,Next="",Filtr="",MaxNode) 
+	if gn[$c(34) w "<input type='text' name='WHAT' title='"_title_"' id='WHAT' value='"_(gn)_"' size='100%' placeholder='?'>"
+	else  w "<input type='text' name='WHAT' title='"_title_"' id='WHAT' value="""_(gn)_""" size='100%' rows=5 placeholder='?'>"
+	write " <input type=""text"" name=""MaxNode"" title=""масксимальное количество узлов"" id=""MaxNode"" value='"_MaxNode_"' size=""10px"" > "_
+	" <input type=""hidden"" name=""Next"" id=""Next"" value='"_Next_"' size=""0px"" > "
+	quit:$e(gn,1)'="^" ""
+	if Next<1 set ButtNext="Обратный просмотр",NewVal=1
+	else  set ButtNext="Прямой просмотр",NewVal=-1
+	quit " <input type=""button"" name=""ButtNext"" id=""ButtNext"" title=""Изменить направление просмотра"" onclick=""document.getElementById('Next').value="_NewVal_";document.forms['loginfo'].submit();"" value='"_$g(ButtNext)_"' size=""50px"" > "_
+	"<input type='text' placeholder='%gn[""3)""||(@%gn[""123"")' name='Filtr' title='Фильтр Например:%gn[""3)""||(@%gn[""123"")' id='Filtr' value='"_Filtr_"' size='20px' >"
+	##; Условия фильтра по узлу и значениям
+ExpTestFiltr(%gn,Filtr) set %test=0
+	xecute "i '("_Filtr_") set %test=$t"   
+ 	quit %test
+errors
+ 	write !,$ze
+ 	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="getNode">
+<Description>
+Получить узел глобала</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&node,gn,NSpace=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	if $e(gn,1,4)=($$$logdevGN),$e(node,1)="(",$e(gn,*-4,*)'="stack" {	
+		set gnSt=$$$logdevGN_$e(gn,5,7)_"stack"
+		set lev2=$qs("a"_node,2)
+		if lev2'="",$d(@gnSt@(lev2)) {
+				set href="href='App.LogInfo.cls?NSP="_NSpace_"&WHAT="_$na(@gnSt@(lev2))_"'"
+				set title="Показать стэк вызовов"
+				try {
+					set lv=@gnSt@(lev2)
+					set title=title_$c(13,10)_$$$LoggedDT($lg(lv,2))
+				} catch e {}
+				;set node=$replace(node,","_lev2_",","<a title='"_title_"' "_href_" target='_Stack"_lev2_"' >,"_lev2_",</a>")
+				set node=$replace(node,","_lev2_",","<a title='"_title_"' "_href_" >,"_lev2_",</a>")
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="DrawNodeGN">
+<Description>
+Отрисовка узла глобала</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[node:%String="",val:%String="",&count,job="",gn,NSpace=""]]></FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set count=count+1
+	do ..getNode(.node, gn, NSpace)
+	if $e(gn,1,4)=($$$logdevGN),$qs(gn,3)["%%%$$LOG^%ETN" {	
+		try { set d=$zd($lg(@gn,1),1),inc=$lg(@gn,2)
+		} catch e { set d="",inc=""}
+		set href="href='/csp/sys/op/UtilSysAppError.csp?$ID1="_$namespace_"&$ID2="_d_"&$ID3="_inc_"'"
+		set title="Показать стэки и переменные"_$c(13,10)_d_" # "_inc
+		;set node=$replace(node,"%%%$$LOG^%ETN","<a  title='"_title_"' "_href_" target='_Etn"_inc_"' >"_"%%%$$LOG^%ETN"_"</a>")
+		set node=$replace(node,"%%%$$LOG^%ETN","<a  title='"_title_"' "_href_" >"_"%%%$$LOG^%ETN"_"</a>")
+	}
+
+	set node=..ShowCell(node,,NSpace)
+	#; для детализации процесса и дашборд системы
+	i job'="",val=job,node="(0)" {
+		set url=$p($g(%request.CgiEnvs("HTTP_REFERER")),"/",1,3)_"/"
+		set val=$replace(val,val,"<a title='Управление процессом' target='process' href='"_url_"csp/sys/op/%25CSP.UI.Portal.ProcessDetails.cls?PID="_val_"&DISPLAYID="_val_"'>"_val_"</a>")
+		set val=val_" <a title='Панель СУБД' target='system' href='"_url_"csp/sys/op/UtilDashboard.csp?$NAMESPACE='>"_$zu(110)_"</a>"
+	}
+	elseif node["%AppLogId" {
+		set url=$p($g(%request.CgiEnvs("HTTP_REFERER")),"/",1,3)_"/"
+		set href="href='App.LogInfo.cls?NSP="_NSpace_"&WHAT="_$zconvert("select * from App.Log where id="_val,"O","URL")_"'"
+		;set node=$replace(node,"%AppLogId","<a title='Загрузить строку таблицы' target='Log"_(+val)_"' "_href_">%AppLogId</a>")
+		set node=$replace(node,"%AppLogId","<a title='Загрузить строку таблицы' "_href_">%AppLogId</a>")
+	}
+	else {	
+		set val=..ShowCell(val,,NSpace)	
+	}
+	set bgcolor="#c4d6d6"
+	if node[",""="")" set bgcolor="white" 
+	&html<
+	<tr>
+		<td>#(count)#</td>
+		<td bgcolor=#(bgcolor)# >#(node)#</td>
+		<td bgcolor=#(bgcolor)# >#(val)#</td>
+	</tr>
+	>
+]]></Implementation>
+</Method>
+
+<Method name="AddClassRef">
+<Description>
+Добавим активную ссылку для просмотра описания класса</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[class,&str,NSpace=""]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;Добавим активную ссылку для просмотра описания класса
+	if ##class(%Dictionary.ClassDefinition).%ExistsId(class) { 
+		set url=$p($g(%request.CgiEnvs("HTTP_REFERER")),"/",1,3)_"/"
+		;set str=$replace(str,class,"<a title='Загрузить описание класса' target='"_str_"' href='"_url_"csp/documatic/%25CSP.Documatic.cls?LIBRARY="_NSpace_"&CLASSNAME="_class_"'>"_class_"</a>")
+		set str=$replace(str,class,"<a title='Загрузить описание класса' href='"_url_"csp/documatic/%25CSP.Documatic.cls?LIBRARY="_NSpace_"&CLASSNAME="_class_"'>"_class_"</a>")
+	}
+]]></Implementation>
+</Method>
+
+<Method name="AddClassId">
+<Description>
+Добавим активную ссылку для просмотра экземпляра класса</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[classname,id,&str,NSpace=""]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	;Добавим активную ссылку для просмотра описания класса
+	if ##class(%Dictionary.ClassDefinition).%ExistsId(classname) { 
+		try {set Obj=$classmethod(classname,"%OpenId",id)
+			if $isobject(Obj) {
+				set what="##class("_classname_").%OpenId("_id_")"
+			}
+		} catch e {	}
+		quit:$g(what)=""
+		set href="href='App.LogInfo.cls?NSP="_NSpace_"&WHAT="_$zconvert(what,"O","URL")_"'"
+		;set str=$replace(str,"_id"":"_id,"<a title='Загрузить экземпляр класса' target='id"_id_"' "_href_">"_"_id"":"_id_"</a>")
+		set str=$replace(str,"_id"":"_id,"<a title='Загрузить экземпляр класса' "_href_">"_"_id"":"_id_"</a>")
+	}
+]]></Implementation>
+</Method>
+
+<Method name="ShowCell">
+<Description>
+Отрисовка клетки
+disabledUrl - не формировать активную ссылку в информационной панели</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>str,disabledUrl=0,NSpace=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set:$lv(str) str=##class(%Global).Quote(str)
+	if $l(str,".")>2 {
+		; TODO пройтись циклом по строке, если много классов
+		if $p($p(str,"(",2),")",1)["." {
+			set class=$p($p(str,"(",2),")",1)
+			if class'="" d ..AddClassRef(class, .str, NSpace)
+		}
+	}
+	if str["_class"":" {
+			set class=$p($p(str,"_class"":",2),$c(34),2)
+			set id=$p($p(str,"_id"":",2),",",1)
+			if class'="" {
+				if id'="" do ..AddClassId(class, id, .str, NSpace)
+				else  d ..AddClassRef(class, .str, NSpace)
+			}
+	}
+	;Добавим ссылку для переход к просмотру стэка
+	elseif str["(",$e(str,1,4)=$$$logdevGN,str'["<a title" {
+		set node="("_$p(str,"(",2,*)
+		do ..getNode(.node, str, NSpace)
+		quit $p(str,"(",1)_node
+	}
+	else {
+		quit str
+	}
+	quit str
+]]></Implementation>
+</Method>
+
+<Method name="DrawSQL">
+<Description>
+Отрисовка формы для ввода информации об объекте</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>SQL:%String="",MaxNode=..#MAXNODES,NSpace="",msg=""</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set query=##class(%ResultSet).%New()
+	set st=query.Prepare(SQL)
+	if 'st quit st
+	set st=query.Execute()
+	if 'st quit st
+	set (count)=0
+	set ColCount=query.GetColumnCount()
+	&html<
+	<h1>#(msg_". запрос: "_SQL)#</h1>
+	<table border="1" cellpadding="2" cellspacing="0" class="DetailTable" bgcolor="#c4d6d6" width="90%"><tbody>
+	<tr><th align="left" width="1%">#</th>
+	>
+	For i=1:1:ColCount {
+		&html<	<th align="left" width="5%">#(query.GetColumnName(i))#</th>>	
+		}
+	&html<	</tr>	>
+	while (query.Next())	{
+		set count=count+1
+		&html<<tr><td>#(count)#</td>>
+		if count>MaxNode w "<td style='color:red'>...Больше "_MaxNode_" записей</td></tr>" QUIT
+		for ii=1:1:ColCount {	
+			&html<<td>#(..ShowCell(query.GetData(ii),,NSpace))#</td>>	
+		}
+			&html<</tr> >
+	}
+	&html<</table>>
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetPathStack">
+<Description>
+Получить стек вызовов</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set $ECODE=""
+	set Path=""
+	for loop=0:1:$STACK	{
+		if Path'="" set Path=Path_"~"
+		set Path=Path_$case(Path,"":"",:"|")_$STACK(loop,"PLACE")
+		if $l(Path)>32000 quit
+	}
+	set Path=$tr(Path,$c(9),"")
+	quit Path
+]]></Implementation>
+</Method>
+
+<Method name="GetValueObj">
+<Description>
+Метод реализует получение значений
+in - описание свойств класса
+out - результат значений 
+Пример 	d ##class(App.LogInfoPane).GetClassDef(classname,Obj,.out)
+		d ##class(App.LogInfoPane).GetValueObj(Obj,.out,.res)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>obj,in,out</FormalSpec>
+<Implementation><![CDATA[
+	set p="" for  { set p=$o(in(p)) quit:p=""
+		set n="" for { set n=$o(in(p,n)) quit:n=""
+			try {
+				set val=$c(1,2,3)
+				if p="Methods" { i n'="getname" continue:$e(n,*-2,*)'="Get"
+					set val=$METHOD(obj,n)
+				}
+				elseif p="Parameters" { 
+					set val=$PARAMETER(obj,n)
+				}
+				elseif p="Properties" { 
+					set val=$PROPERTY(obj, n)
+				}
+				set:val'=$c(1,2,3) out(p,n,"=")=val
+			}
+			catch (e) {
+			}
+		}
+	}
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetClassDef">
+<Description>
+Разобрать описание класса на методы и свойства 
+d ##class(App.LogInfoPane).GetClassDef("mvk.utils.Log","",.out)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[aClassName:%String="",doc,&out]]></FormalSpec>
+<Implementation><![CDATA[
+	if $g(doc)'="", $isobject(doc) set aClassName=doc.%ClassName(1)
+	set classDefinition=##class(%Dictionary.ClassDefinition).%OpenId(aClassName)
+	if ('$isobject(classDefinition)) {
+		quit
+	}
+
+	// Формируем описание класса
+	set classDescription=$zstrip(classDefinition.Description,"<>W")
+	set out("ClassName",aClassName)=classDescription
+	if classDefinition.Super'="" {
+		set out("ClassName",aClassName,"super")=classDefinition.Super
+		for sup=1:1:$l(classDefinition.Super,",") {  continue:$p(classDefinition.Super,",",sup)=""
+			do ..GetClassDef($p(classDefinition.Super,",",sup),,.out)
+		}
+
+	}
+	// Формируем описание методов
+	if (classDefinition.Methods.Count()>0) {
+		set key=""
+		while(1) {
+			set methodDefinition=classDefinition.Methods.GetNext(.key)
+			quit:(key="")
+			set out("Methods",methodDefinition.Name,"Description")=methodDefinition.Description
+		} 
+
+		// Описания свойств
+		if (classDefinition.Properties.Count()>0) {
+			set key=""
+			while(1) {
+				set propertyDefinition=classDefinition.Properties.GetNext(.key)
+				quit:(key="")
+				set out("Properties",propertyDefinition.Name,"Description")=propertyDefinition.Description
+			}
+		}
+		// Описания параметров
+		if (classDefinition.Parameters.Count()>0) {
+			set key=""
+			while(1) {
+				set parameterDefinition=classDefinition.Parameters.GetNext(.key)
+				quit:(key="")
+				set out("Parameters",parameterDefinition.Name,"Description")=parameterDefinition.Description
+			}
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="copyToClipboard">
+<Description>
+Копировать в буфер обмена
+d ##class(App.LogInfoPane).copyToClipboard("MSW")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>elementId</FormalSpec>
+<Implementation><![CDATA[
+ &html<	
+
+	function copyToClipboard(elementId) {
+
+  // Create a "hidden" input
+  var aux = document.createElement("input");
+
+  // Assign it the value of the specified element
+  aux.setAttribute("value", document.getElementById(elementId).innerHTML);
+
+  // Append it to the body
+  document.body.appendChild(aux);
+
+  // Highlight its content
+  aux.select();
+
+  // Copy the highlighted text
+  document.execCommand("copy");
+
+  // Remove it from the body
+  document.body.removeChild(aux);
+}
+>
+ &html<
+<p id="p1">P1: I am paragraph 1</p>
+<p id="p2">P2: I am a second paragraph</p>
+<button onclick="copyToClipboard('p1')">Copy P1</button>
+<button onclick="copyToClipboard('p2')">Copy P2</button>
+<br/><br/><input type="text" placeholder="Paste here for test" />
+>
+]]></Implementation>
+</Method>
+
+<Method name="Init">
+<Description>
+Метод инициализует девелопера в системе
+d ##class(App.LogInfoPane).Init(,"MSW")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>username=$username,fio="DEV"</FormalSpec>
+<Implementation><![CDATA[	set @$$$MgtPortalSettings@($Username,"DeveloperName")=$g(fio,"DEV")
+]]></Implementation>
+</Method>
+
+<Method name="GetHelp">
+<Description>
+Метод реализует получение всплывающей подсказки</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>help</FormalSpec>
+<Implementation><![CDATA[
+	#define addA(%text,%title,%input) "<a title='"_%title_"' href='App.LogInfo.cls?NSP="_$zu(5)_"&WHAT="_$zconvert(%input,"O","URL")_"'>"_%text_"</a>"
+
+	#define sH(%msg) set help($i(help))=%msg
+	$$$sH("Примеры вызова:")
+	$$$sH(" ##class(App.Log).%OpenId(215) - Получить информацию по классу и объекту")
+	$$$sH(" =##class(App.Log).%OpenId(215) - Получить информацию только по значениям объекта")
+	$$$sH(" "_$$$addA("Log","Перейти к протоколу","log")_" Получить sql запрос по протоколу App.Log "_" "_$$$addA("log-  ","Очистить таблицу протокола","log-")_" Удалить таблицу протокола")
+
+	set fio=$g(@$$$MgtPortalSettings@($Username,"DeveloperName"),"DEV")
+	set gn=$$$logdevGN_fio
+	$$$sH(" "_$$$addA(gn," Перейти к глобалу протокола",gn)_" - Вывести массив. Ограничение "_..#MAXNODES_" узлов. "_$$$addA(gn_"-"," Удалить глобал протокола "_gn,gn_"-")_" - Удалить глобал протокола "_gn)
+	set input=$$$logdevGN_fio_"-p"_$j
+	set title="Инициализировать отладочный глобал для исследования в процессе "_$j
+	$$$sH(" "_$$$addA(input,title,input)_" - "_title_"")
+	$$$sH(" select * from ... - sql запрос")
+	$$$sH(" Если этот макрос вставить в исследуемую программу $$$LogDebug(""Отладочная информация"") то в таблице App.Log появися новая запись")
+	$$$sH(" Максрос $$$AppLog("""_fio_""",""node"",$lb(var1,var2),mode) позволит записать значений переменных var1,var2 в глобал "_gn)
+	$$$sH("	Где mode=""svetapdw"" строка симводов")
+	$$$sH("	s - Стэк сохраним")
+	$$$sH("	t - table App.Log")
+	$$$sH("	v - variables")
+	$$$sH("	e - записать стэк программой %ETN ") 
+	$$$sH(" Если (v)ar, то объекты сериализуются в формате Json, иначе:")
+	$$$sH(" a - перечень значений свойств и описание класса")
+	$$$sH(" p - только значения")
+	$$$sH(" d - zwrite obj вывести в терминале")
+	$$$sH(" w - write вывести в терминале")
+	quit ""
+	##;1. MSW tools Исправить ошибку в %ZEN.Generator).%FindLocalizedText()
+	;try { Set pTextList(tKey) = "" } catch e {}
+	##;2. MSW tools Добавить ссылку на инструмент в %CSP.Portal.Home).%DrawLinks()
+	;Set tOptions($I(n)) = $LB($$$Text("<font color=red>Developers Tools</font>"),"",..Link("/csp/log/App.LogInfo.cls"),$$$Text("загрузить инструменты разработчика"))
+]]></Implementation>
+</Method>
+</Class>
+</Export>
