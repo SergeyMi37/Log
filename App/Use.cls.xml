@@ -25,7 +25,7 @@ do ##class(App.Use).TestWithObjects()</Description>
 
 <Method name="TestLogObjects">
 <Description>
-zn "%SYS"
+zn "%SYS" 
 do ##class(App.Use).TestLogObjects(4)</Description>
 <ClassMethod>1</ClassMethod>
 <FormalSpec>id</FormalSpec>
