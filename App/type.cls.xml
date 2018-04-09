@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.type">
+<Description>
+Утилиты работы с типами</Description>
+<Abstract>1</Abstract>
+<IncludeCode>App.LogMacro</IncludeCode>
+<TimeCreated>64735,32446.061315</TimeCreated>
+
+<Method name="GetValidZD">
+<Description>
+Проверить на валидность и вывести дату
+w ##class(App.type).GetValidZD(+$h)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hr</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	try{ s res=$tr($zd(hr,4),"/",".") }
+	catch e { s res="" }
+	;$$$LogError("Дополнительное сообщение1")
+	q res
+]]></Implementation>
+</Method>
+
+<Method name="GetYear">
+<Description>
+Получить год в формате 2018
+w ##class(App.type).GetYear($h)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>h</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	q $p($zd(h,3),"-",1)
+]]></Implementation>
+</Method>
+
+<Method name="GetDateTime">
+<Description>
+Получить дату в формате 2018-04-03T16:40:30
+w ##class(App.type).GetDateTime($h)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>h</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[	q $zd(h,3)_"T"_##class(App.type).GetValidZT(h)
+]]></Implementation>
+</Method>
+
+<Method name="GetValidZT">
+<Description>
+Проверить на валидность и вывести время
+w ##class(App.type).GetValidZT($h)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>hr</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	try{ s res=$zt(+$p(hr,",",2),1) }
+	catch e { s res="" }
+	;$$$LogError("Дополнительное сообщение "_hr)
+	q res
+]]></Implementation>
+</Method>
+
+<Method name="getDDMMYYYY">
+<Description>
+Переведем дату к формату DD.MM.YYYY
+w ##class(App.type).getDDMMYYYY("2016-05-05")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pStringDate:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	try {
+		i pStringDate?1n.n s pStringDate=$zd(pStringDate,3)
+		i pStringDate["." s date=pStringDate
+		i pStringDate["-" s date=$p(pStringDate,"-",3)_"."_$p(pStringDate,"-",2)_"."_$p(pStringDate,"-",1)
+		i pStringDate["/" s date=$p(pStringDate,"/",2)_"."_$p(pStringDate,"/",1)_"."_$p(pStringDate,"/",3)
+	} catch e {}
+	q $g(date)
+]]></Implementation>
+</Method>
+
+<Method name="getYYYYMMDD">
+<Description>
+Переведем дату к формату YYYY-MM-DD  FORMAT=3
+w ##class(App.type).getYYYYMMDD(+$h)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>pStringDate:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	try {
+		i pStringDate?1n.n s date=$zd(pStringDate,3) q
+		i pStringDate["." s date=$p(pStringDate,".",3)_"-"_$p(pStringDate,".",2)_"-"_$p(pStringDate,".",1)
+		i pStringDate["-" s date=pStringDate q
+		i pStringDate["/" s date=$p(pStringDate,"/",3)_"-"_$p(pStringDate,"/",1)_"-"_$p(pStringDate,"/",2)
+	} catch e {}
+	q $g(date)
+]]></Implementation>
+</Method>
+</Class>
+</Export>

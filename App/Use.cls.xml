@@ -22,5 +22,18 @@ do ##class(App.Use).TestWithObjects()</Description>
 <Implementation><![CDATA[	$$$LogWarn("User message")
 ]]></Implementation>
 </Method>
+
+<Method name="TestLogObjects">
+<Description>
+zn "%SYS"
+do ##class(App.Use).TestLogObjects(4)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>id</FormalSpec>
+<Implementation><![CDATA[
+	set object=##class(%SYS.Task).%OpenId(id)
+	set $$$AppL("MSW","taskObjId")=$$$AppObJs(id)
+ 	set $$$AppL("MSW","taskObj")=$$$AppObJs(object)
+]]></Implementation>
+</Method>
 </Class>
 </Export>

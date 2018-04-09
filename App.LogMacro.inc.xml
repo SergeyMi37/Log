@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Export generator="Cache" version="25">
 <Routine name="App.LogMacro" type="INC"><![CDATA[
+#include EnsSQLTypes
+
 #define StackPlace 		$st($st(-1),"PLACE")
 #define CurrentClass 	##Expression($$$quote(%classname))
 #define CurrentMethod 	##Expression($$$quote(%methodname))
@@ -26,6 +28,27 @@
 #define LogEventAddGN(%debubGN, %message) s %AppLogId=##class(App.Log).AddRecord($$$CurrentClass,$$$CurrentMethod,$$$StackPlace,"DEBUG",%debubGN,%message)
 #define logdevGN 	"^log"
 #define MgtPortalSettings 	"^CacheTemp.MgtPortalSettings"
+#define AppLogTab(%type,%message,%desc) Do ##class(App.Log).AddRecord($$$CurrentClass,$$$CurrentMethod,$$$StackPlace,%type,%desc,%message)
 #define AppLog(%dev,%node,%list,%mode) s zsr=$zr,zsG=$$$logdevGN_%dev  if $g(@zsG@(0))=$j||($g(@zsG@(0))="") { s @zsG@(1,$i(@zsG),%node)=%list,zsGzr=$zr if %mode["t" { $$$LogEventAddGN(zsGzr,%list) } if %mode["s" {s zsG=$na(@($qs(zsGzr,0)_"stack")@($qs(zsGzr,2))),@zsG=$lb($ze,$h,$tl,$io,$j,$zu(110),##class(App.LogInfoPane).GetPathStack(),##class(App.Log).GetClientAddress()) S zs1="",zsG=$na(@zsG@("varList")),zsii=0 k @zsG s:%mode["e" @zsG@("%%%$$LOG^%ETN")=$$LOG^%ETN  if %mode["v" { f { s zs1=$O(@zs1) q:zs1=""  continue:$e(zs1,1,2)="zs"&&(zs1'="zs")  if $d(@zs1)'["0",$isobject(@zs1) { s @zsG@(zs1)=##class(App.Log).SerializeObject(@zs1,$na(@zsG@(zs1))),zsii=zsii+1 } elseif $d(@zs1)>9 {s:$d(@zs1)=11 @zsG@(zs1)=@zs1,zsii=zsii+1 MERGE @zsG@(zs1)=@zs1 if zs1="%zlog" {s zs2="" for {s zs2=$o(@zs1@(zs2)) q:zs2=""   s @zsG@(zs1,zs2)=##class(App.Log).SerializeObject($G(@zs1@(zs2)),$na(@zsG@(zs1,zs2)),%mode)   }}}	 elseif $d(@zs1)=1 {s @zsG@(zs1)=@zs1,zsii=zsii+1}} s @zsG=zsii KILL zsii,zsG,zs1,zs2}else{KILL zsii,zsG,zs1,zs2,zsGzr}} try{ if $d(@zsr) KILL zsr} catch e { KILL zsr}}
+#; Добавить активную ссылку на панель
+#define addAppLog(%text,%title,%input,%target) "<a title='"_%title_"' "_$g(%target)_" href=""App.LogInfo.cls?NSP="_$zu(5)_"&WHAT="_$zconvert(%input,"O","URL")_""">"_%text_"</a>"
+
+#; Получить дату и время ГГГГ-ММ-ДД ЧЧ:ММ:СС
+#define AppDT(%h) $zd(+%h,3)_" "_##class(App.type).GetValidZT(%h)
+#define AppObJs(%ob)  $s($isobject(%ob):##class(App.Log).WriteJSONFromObject(%ob),1:%ob)
+#define ApplogGN(%fio) ("^log"_$zconvert($e(%fio,1,3),"U"))
+#define AppL(%fio,%node) @$$$ApplogGN(%fio)@($i(@$$$ApplogGN(%fio)),$$$AppDT($h)_" "_%node)
+
+#define forAll(%in,%gn) s gn%in=$na(%gn) s %in="" f { s %in=$o(@gn%in@(%in)) q:%in=""
+#define forAllk(%in,%kn,%gn) s gn%in=$na(%gn) s %in="" f %kn=1:1 { s %in=$o(@gn%in@(%in)) q:%in=""
+#define endFor  }
+
+/// сохранить имя текущей области
+#define NspGoto(%cur,%ns)  s %cur=$zu(5) try {zn %ns} catch e {} 
+#define NspReturn(%cur)  zn %cur
+
+#; --------------- Прикладной раздел
+#define GNEnsConf ^%Mvk.Setting
+
 ]]></Routine>
 </Export>

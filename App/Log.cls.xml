@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Export generator="Cache" version="25">
 <Class name="App.Log">
+<Description>
+Updated at 12/08/2017 16:09:03</Description>
 <Super>%Persistent</Super>
 <TimeCreated>63685,63064.148177</TimeCreated>
 
@@ -36,13 +38,6 @@ Name of method, where event happened</Description>
 <Property name="Source">
 <Description>
 Line of int code</Description>
-<Type>%String</Type>
-<Parameter name="MAXLEN" value="2000"/>
-</Property>
-
-<Property name="SourceCLS">
-<Description>
-Line of cls code</Description>
 <Type>%String</Type>
 <Parameter name="MAXLEN" value="2000"/>
 </Property>
@@ -127,20 +122,26 @@ Determine user IP address</Description>
 <Method name="AddRecord">
 <Description>
 Add new log event
-Use via $$$LogEventTYPE().</Description>
+Use via $$$LogEventTYPE().
+Return ID log</Description>
 <ClassMethod>1</ClassMethod>
 <FormalSpec>ClassName:%String="",MethodName:%String="",Source:%String="",EventType:%String="",Arguments:%String="",Message:%String=""</FormalSpec>
 <Implementation><![CDATA[
-	Set record = ..%New()
-	Set record.Arguments = Arguments
-	Set record.ClassName = ClassName
-	Set record.EventType = EventType
-	Set record.Message = Message
-	Set record.MethodName = MethodName
-	Set record.Source = Source
-	do ..GetClassSourceLine($Piece(Source, " ", 1, *-1), .SourceCLS)
-	Set record.SourceCLS = SourceCLS
-	Do record.%Save()
+	try {
+		Set record = ..%New()
+		Set record.Arguments = Arguments
+		Set record.ClassName = ClassName
+		Set record.EventType = EventType
+		Set record.Message = Message
+		Set record.MethodName = MethodName
+		Set record.Source = Source
+		set sc=record.%Save()
+		set:sc id=record.%Id()
+	} catch err {
+		set id=""
+	}
+	
+	quit $g(id)
 ]]></Implementation>
 </Method>
 
@@ -151,7 +152,7 @@ Entry point to get method arguments string </Description>
 <FormalSpec>ClassName:%String,MethodName:%String</FormalSpec>
 <ReturnType>%String</ReturnType>
 <Implementation><![CDATA[
-	Set list = ..GetMethodArgumentsList(ClassName, MethodName)
+	Set list = ..GetMethodArgumentsList(ClassName,MethodName)
 	Set string = ..ArgumentsListToString(list)
 	Return string
 ]]></Implementation>
@@ -206,48 +207,50 @@ Convert list of method arguments to string</Description>
 </Method>
 
 <Method name="SerializeObject">
+<Description>
+Сериализация объекта в json
+obj - объект
+gn - глобальная ссылка для сохранения потока
+mode - режима сохранения объекта см: /csp/log/App.LogInfo.cls?WHAT=?
+w ##class(App.Log).SerializeObject(obj,"^gn","sveta")</Description>
 <ClassMethod>1</ClassMethod>
-<FormalSpec>Object</FormalSpec>
+<FormalSpec>Object,gn="",mode=""</FormalSpec>
 <ReturnType>%String</ReturnType>
 <Implementation><![CDATA[
 	Return:'$IsObject(Object) Object
+	if $ClassMethod(Object.%ClassName(1), "%Extends", "%Stream.Object") {
+		d Object.Rewind() while '(Object.AtEnd) { 
+			set:gn'="" @gn@($i(inc))=$zconvert(Object.Read(32000),"I","UTF8")
+		}
+		Return Object.%ClassName(1)_" %Extends %Stream.Object"
+	} 
 	Return ..WriteJSONFromObject(Object)
 ]]></Implementation>
 </Method>
 
 <Method name="WriteJSONFromObject">
+<Description>
+w ##class(App.Log).WriteJSONFromObject(b)</Description>
 <ClassMethod>1</ClassMethod>
 <FormalSpec>Object</FormalSpec>
 <ProcedureBlock>0</ProcedureBlock>
 <ReturnType>%String</ReturnType>
 <Implementation><![CDATA[
-	New OldIORedirected, OldMnemonic, OldIO, Str
-	Set OldIORedirected = ##class(%Device).ReDirectIO()
-	Set OldMnemonic = ##class(%Device).GetMnemonicRoutine()
-	Set OldIO = $io
-	Try {
-		Set Str=""
+    // Create a string that we will redirect to
+    Set zsStr = ""
 
-		//Redirect IO to the current routine - makes use of the labels defined below
-		Use $io::("^"_$ZNAME)
+    Use $io::("^"_$ZNAME)
 
-		//Enable redirection
-		Do ##class(%Device).ReDirectIO(1)
-
-		Do ##class(%ZEN.Auxiliary.jsonProvider).%ObjectToJSON(Object)
-	} Catch Ex {
-		Set Str = ""
-	}
-
-	//Return to original redirection/mnemonic routine settings
-	If (OldMnemonic '= "") {
-		Use OldIO::("^"_OldMnemonic)
-	} Else {
-		Use OldIO
-	}
-	Do ##class(%Device).ReDirectIO(OldIORedirected)
-
-	Quit Str
+    // Enable redirection
+    Do ##class(%Device).ReDirectIO(1)
+ 
+    // Any write statements here will be redirected to the labels defined below
+    Do ##class(%ZEN.Auxiliary.jsonProvider).%ObjectToJSON(Object)
+ 
+    // Disable redirection
+    Do ##class(%Device).ReDirectIO(0)
+    
+    Return zsStr
  
     // Labels that allow for IO redirection
     // Read Character - we don't care about reading
@@ -266,25 +269,71 @@ wstr(s)      Do output(s)  Quit
 wtab(s)      Do output($char(9))  Quit
     // Output label - this is where you would handle what you actually want to do.
     // in our case, we want to write to Str
-output(s)    Set Str = Str_s Quit
+output(s)    Set zsStr = zsStr_s Quit
+]]></Implementation>
+</Method>
+
+<Method name="Load">
+<Description>
+Загрузить контекст из протокольного глобала
+Пример: d ##class(App.Log).Load("^logMSWstack(3)")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>gn</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	Return:gn'["^"||('$d(@gn)) $$$OK
+	set key = ""
+	if gn'["varList" {
+		set GN=$na(@gn@("varList"))
+		For { set key=$order(@GN@(key)) quit:key=""
+			continue:key["%%%$$LOG^%ETN"||(key["%AppLogId")
+			if key="%zlog" {
+				set keyzlog="" 
+				for { set keyzlog=$order(@GN@(key,keyzlog)) 
+					quit:keyzlog=""
+					do LoadNode($na(@GN@(key,keyzlog)),keyzlog)
+				}
+			} else {
+				do LoadNode($na(@GN@(key)),key)
+			}
+		}
+	} else {
+		do LoadNode(gn,$qs(gn,$ql(gn)))
+	}
+	Kill key,gn,GN
+	Return $$$OK
+LoadNode(GNkey,key)
+	try {
+		// Если в json есть _class
+		if $Get(@GNkey)["_class"":" {
+			set @key = ..DeserializeObject($Get(@GNkey),$p($p($Get(@GNkey),"_class"":",2),$c(34),2))
+		}
+		else {
+			set @key=$Get(@GNkey)
+		}
+	} catch e { set LastErrorLoad=$ze}
+	q
 ]]></Implementation>
 </Method>
 
 <Method name="LoadContext">
+<Description>
+Загрузить контекст из таблицы протокола</Description>
 <ClassMethod>1</ClassMethod>
-<FormalSpec>zzId</FormalSpec>
+<FormalSpec>Id</FormalSpec>
 <ProcedureBlock>0</ProcedureBlock>
 <ReturnType>%Status</ReturnType>
 <Implementation><![CDATA[
-	New zzObj, zzArguments, zzArgument, zzi, zzList
-	Return:'..%ExistsId(zzId) $$$OK
-	Set zzObj = ..%OpenId(zzId)
-	Set zzArguments = zzObj.Arguments
-	Set zzList = ..GetMethodArgumentsList(zzObj.ClassName,zzObj.MethodName)
-	For zzi=1:1:$Length(zzArguments, ";")-1 {
-		Set zzArgument = $Piece(zzArguments,";",zzi)
-		Set @$lg($lg(zzList,zzi)) = ..DeserializeObject($Piece(zzArgument,"=",2), $lg($lg(zzList,zzi),2))
+	Return:'..%ExistsId(Id) $$$OK
+	Set Obj = ..%OpenId(Id)
+	Set Arguments = Obj.Arguments
+	Set List = ..GetMethodArgumentsList(Obj.ClassName,Obj.MethodName)
+	For i=1:1:$Length(Arguments,";")-1 {
+		Set Argument = $Piece(Arguments,";",i)
+		Set @$lg($lg(List,i)) = ..DeserializeObject($Piece(Argument,"=",2,*),$lg($lg(List,i),2))
 	}
+	Kill Obj,Arguments,Argument,i,Id,List
 ]]></Implementation>
 </Method>
 
@@ -299,55 +348,6 @@ output(s)    Set Str = Str_s Quit
 		Return:$$$ISOK(st) obj
 	}
 	Return String
-]]></Implementation>
-</Method>
-
-<Method name="GetClassSourceLine">
-<ClassMethod>1</ClassMethod>
-<FormalSpec>IntLocation:%String,*ClsLocation:%String</FormalSpec>
-<ReturnType>%Status</ReturnType>
-<Implementation><![CDATA[
-    Set Status = $$$OK
-    Set ClsLocation = ""
-    Try {
-        Set MethodAndLine = $Piece(IntLocation,"^",1)
-        Set IntName = $Piece(IntLocation,"^",2)
-        Set Tag = $Piece(MethodAndLine,"+")
-        Set RelativeOffset = $Piece(MethodAndLine,"+",2)
-        
-        // Get routine text to find the absolute offset of tTag
-        Set TagOffset = 0
-        Set EndPos = 0
-        Set TextLines = 0
-        For {
-            Set Line = $Text(@("+"_$Increment(TextLines)_ "^" _ IntName))
-            Quit:Line=""
-            
-            // Example:
-            // zRun() public {
-            // This relies on an assumption that methods will be sorted alphabetically and won't contain labels.
-            If $Extract(Line, 1, $Length(Tag)) = Tag {
-                Set TagOffset = TextLines //tTextLines is the counter.
-                Set EndPos = $Length(Line)
-                Quit
-            }
-        }
-        
-        // The absolute offset of the line in the .int file is the tag's offset plus the offset within it.
-        Set Offset = TagOffset + RelativeOffset
-        Set Status = ##class(%Studio.Debugger).SourceLine(IntName, Offset, 0, Offset, EndPos,, .Map)
-        If $$$ISERR(Status) {
-            Quit
-        }
-        If $Data(Map("CLS", 1)) {
-            Set $ListBuild(Class, Method, Line, EndPos, Namespace) = Map("CLS", 1)
-            Set Class = $$$comMemberKeyGet(Class, $$$cCLASSmethod, Method, $$$cMETHorigin)
-            Set ClsLocation = Class _ ":" _ Method _ "+" _ Line
-        }
-    } Catch Ex {
-        Set Status = Ex.AsStatus()
-    }
-    Quit Status
 ]]></Implementation>
 </Method>
 
@@ -389,10 +389,13 @@ output(s)    Set Str = Str_s Quit
 <Value name="10">
 <Value>Source</Value>
 </Value>
-<Value name="11">
-<Value>SourceCLS</Value>
-</Value>
 </Data>
 </Storage>
+
+<Query name="FindLog">
+<Type>%SQLQuery</Type>
+<SqlQuery>SELECT %ID,ClassName,ClientIPAddress,EventType,Message,MethodName,Source,TimeStamp,UserName FROM Log</SqlQuery>
+<Parameter name="CONTAINID" value="1"/>
+</Query>
 </Class>
 </Export>

@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.sys">
+<Abstract>1</Abstract>
+<IncludeCode>App.LogMacro</IncludeCode>
+<TimeCreated>64734,80043.870644</TimeCreated>
+
+<Method name="GetSysUserProp">
+<Description>
+Получить свойства системного пользователя
+w ##class(App.sys).GetSysUserProp("Login",.Prop)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Name,Prop</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	$$$NspGoto(curNs,"%SYS")
+	set Status=##Class(Security.Users).Get(Name,.Prop)
+	$$$NspReturn(curNs)
+	quit Status
+]]></Implementation>
+</Method>
+
+<Method name="IsPreparedDB">
+<Description>
+Проверить предустановленная ли база данных
+w ##class(App.sys).IsPreparedDB("ENSDEMO")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>name</FormalSpec>
+<Implementation><![CDATA[
+	i (",ENSDEMO,ENSEMBLE,ENSEMBLEENSTEMP,ENSEMBLESECONDARY,ENSLIB,CACHESYS,CACHELIB,CACHETEMP,CACHE,CACHEAUDIT,DOCBOOK,USER,SAMPLES,")[(","_$zconvert(name,"U")_",") q 1
+	Q 0
+]]></Implementation>
+</Method>
+
+<Method name="getEnsProd">
+<Description>
+Получить список продукций в области
+w ##class(App.sys).getEnsProd("ENSDEMO",.info)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>name,info</FormalSpec>
+<Implementation><![CDATA[
+	s sc=$$$OK
+	try {
+		$$$NspGoto(curNs,name) KILL info
+		DO ##CLASS(Ens.Director).GetProductionSummary(.info,name)
+	}
+	catch e { s sc=$$$ERROR($$$GeneralError,$ze)}
+	$$$NspReturn(curNs)
+	Q sc
+]]></Implementation>
+</Method>
+
+<Method name="IsPreparedNS">
+<Description>
+Проверить предустановленная ли область
+w ##class(App.sys).IsPreparedNS("%SYS")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>name</FormalSpec>
+<Implementation><![CDATA[
+	i (",%SYS,%ALL,DOCBOOK,ENSDEMO,ENSEMBLE,SAMPLES,USER,")[(","_$zconvert(name,"U")_",") q 1
+	Q 0
+]]></Implementation>
+</Method>
+
+<Method name="ListDB">
+<Description>
+Получить список имен баз данных через запятую
+w ##class(App.sys).ListDB(.info,"NotPref")
+info - возвращаемая информация о бд
+Flag = "NotPref" - исключить предустановленные</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>info,Flag=""</FormalSpec>
+<Implementation><![CDATA[
+	$$$NspGoto(curNs,"%SYS")	
+	s list=""
+	s rss=##class(%ResultSet).%New("Config.Databases:List")
+	d rss.Execute()
+	while rss.Next(.sc) { 
+		s name=rss.Data("Name")
+		if Flag["NotPref" continue:##class(App.sys).IsPreparedDB(name)
+		s list=list_","_name 
+		m info(name)=rss.Data
+	}
+	
+	d rss.Close()
+	$$$NspReturn(curNs)	
+	Q $g(list)
+]]></Implementation>
+</Method>
+
+<Method name="ListNS">
+<Description>
+Получить список имен областей через запятую
+w ##class(App.sys).ListNS(.info,"NotPref")
+Flag = "Ens" - только где установлен ансамбль
+Flag = "NotPref" - исключить предустановленные</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>info,Flag=""</FormalSpec>
+<Implementation><![CDATA[
+	s disp=""
+	$$$NspGoto(curNs,"%SYS")	
+	set tRS = ##class(%ResultSet).%New("Config.Namespaces:List")
+	set tSC = tRS.Execute()
+	While tRS.Next() {	
+		s name=tRS.GetData(1) KILL ens
+		if Flag["NotPref" continue:##class(App.sys).IsPreparedNS(name)
+		if Flag["Ens",##class(App.sys).getEnsProd(name,.ens) k info("Ens") m info(name,"Ens")=ens
+		s disp=disp_","_name
+		m info(name)=tRS.Data
+	}
+	d tRS.Close()
+	$$$NspReturn(curNs)	
+	Q $g(disp)
+]]></Implementation>
+</Method>
+
+<Method name="getSQLConnection">
+<Description>
+  w ##class(App.sys).getSQLSQLConnection(.list)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&List:%String=""]]></FormalSpec>
+<Implementation><![CDATA[
+	set res=""
+	$$$NspGoto(curNs,"%SYS")	
+	Set result=##CLASS(%ResultSet).%New("%DynamicQuery:SQL")
+	Set tSC=result.Prepare("select Connection_Name from %Library.sys_SQLConnection where isJDBC=1")
+	Set:tSC tSC=result.Execute()
+	
+	if '(tSC) {
+		s text="Ошибка настройки приложений :"_$SYSTEM.Status.GetErrorText(tSC)  w !,text QUIT $$Error^%apiOBJ(text)
+	}
+	else {
+		while result.Next() {
+			if result.Data("Connection_Name")'="" {
+				set List(result.Data("Connection_Name"))=""
+				set res=res_result.Data("Connection_Name")_","
+			}
+		}
+	}
+	$$$NspReturn(curNs)	
+	Q $g(res)
+]]></Implementation>
+</Method>
+
+<Method name="SqlToDSN">
+<Description>
+Получить запрос по DSN
+w $System.Status.GetErrorText(##class(App.sys).SqlToDSN("SELECT * FROM xxmv.xxmvk_t359_pzn","OEBS-Daily","^tmMSWq"))</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>cmd,DSN,result,top=100000</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	#dim %JDBCGateway As %Net.Remote.Java.JDBCGateway
+	set conn = $system.SQLGateway.GetJDBCConnection(DSN)
+	if (conn = "") quit 0
+	set st = %JDBCGateway.prepareStatement(conn, cmd)
+	set %JDBCGateway.StatementCache(conn) = st
+	set query = %JDBCGateway.execQuery(st)
+	
+	if (query = -1)
+	{
+		set sc = $$$ERROR($$$GeneralError, %JDBCGateway.getErrorText())
+		do %JDBCGateway.removeStatement(conn)
+		;if $isObject($g(%JDBCGateway)) do %JDBCGateway.closeAll()
+		quit sc
+	}
+	i $g(result)'="" s gn=result k @gn
+	e  s gn="result" 
+	
+	set columns = %JDBCGateway.getColumnCount(st)
+	
+	set pos = 0
+	for i=1:1:columns 
+	{
+	  set name = %JDBCGateway.getColumnName(st,i)
+	  set size = %JDBCGateway.getColumnDisplaySize(st,i)
+	  set Type= %JDBCGateway.getColumnType(st,i)
+	  set TypeName= %JDBCGateway.getColumnTypeName(st,i)
+	  s @gn@(0,i)=$lb(name,size,Type,TypeName)
+	  ;s @gn@(-1)=$g(@gn@(-1))_$lb($lb(size,Type,TypeName))
+	  set pos(i) = pos
+	  set pos = pos + size + 1
+	  ;w name,!
+	}
+
+	set cnt = 1
+	while %JDBCGateway.next(st)
+	{
+		;write !
+		for i=1:1:columns {
+			;write "!",%JDBCGateway.getString(st, i) 
+			s @gn@(cnt)=$g(@gn@(cnt))_$lb(%JDBCGateway.getString(st, i))
+		}
+		set cnt = cnt + 1
+		q:cnt>top
+	}
+	;w !,cnt,!
+	s @gn=cnt-1
+	;if $isObject($g(%JDBCGateway)) do %JDBCGateway.closeAll()
+	do %JDBCGateway.removeStatement(conn)
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="SaveQuery">
+<Description><![CDATA[
+Процедура для вызова из регулярного задания и сохранения в глобале отчетов
+%SYS>d ##class(App.sys).SaveQuery("SYS.Database:FreeSpace") - свободное место для бд]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>query="%SYSTEM.License:Counts",gn="^TaskGN",datetime=""</FormalSpec>
+<Implementation><![CDATA[
+	set:datetime="" datetime=$$$AppDT($h)
+	set gnTask=$na(@gn@(query,datetime))
+	Set rset=##class(%Library.ResultSet).%New(query)
+	If rset="" s @gnTask@("Create Query failed")= $System.Status.DisplayError(%objlasterror) q %objlasterror
+	Set status=rset.Execute()
+	If $$$ISERR(status) s @gnTask@("Execute Query failed:")= $System.Status.DisplayError(status) q status
+	Set colcnt=rset.GetColumnCount()
+	For i=1:1:colcnt s @gnTask@(0,i)=rset.GetColumnName(i)
+	while rset.Next() {	if $I(row)
+	   For i=1:1:colcnt s @gnTask@(row,i)=rset.GetData(i)
+	}
+	q $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="RunTask">
+<Description><![CDATA[
+Процедура для вызова из регулярного задания 
+%SYS>d ##class(App.sys).RunTask("snmpwalk -v 1 cip.mvk.ru -c public 1.3.6.1.4.1.16563.1.1.1.1.10","^%Mvk.TaskLic","%SYSTEM.License:Counts","/backup/temp/snmp/")]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>cmdOs="free",gn="^TaskGN",query="%SYSTEM.License:Counts",dir="/backup/temp/"</FormalSpec>
+<Implementation><![CDATA[
+	set datetime=$tr($$$AppDT($h)," ","_")
+	set gnTask=$na(@gn@(datetime))
+	set filename=dir_"RunTask"_datetime_".txt"
+	if cmdOs'="",$zf(-1,cmdOs_" > "_filename)
+	if query'="" d ##class(App.sys).SaveQuery(query,gn,datetime)
+	q $$$OK
+]]></Implementation>
+</Method>
+</Class>
+</Export>

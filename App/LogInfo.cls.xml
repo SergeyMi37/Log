@@ -1,10 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Export generator="Cache" version="25">
 <Class name="App.LogInfo">
-<Description>
-Updated at 12/08/2017 16:09:03</Description>
+<IncludeCode>App.LogMacro</IncludeCode>
 <Super>App.AutoPage</Super>
 <TimeCreated>64621,44286.491046</TimeCreated>
+
+<Parameter name="TESTSERVER">
+<Description>
+Имя тестового сервера</Description>
+<Default>test.ru</Default>
+</Parameter>
+
+<Parameter name="EMAILSERVERIP">
+<Description>
+Настройки почтового сервера</Description>
+<Default>192.168.1.1</Default>
+</Parameter>
+
+<Parameter name="EMAILSERVERPORT">
+<Default>25</Default>
+</Parameter>
+
+<Parameter name="EMAILAUTH">
+<Description>
+Авторизация в почтовом сервера</Description>
+<Default>mail@server.ru</Default>
+</Parameter>
+
+<Parameter name="EMAILAUTHPASS">
+<Default>222</Default>
+</Parameter>
+
+<Parameter name="EMAILSUPPORT">
+<Description>
+Адрес админа техподдержки</Description>
+<Default>user@mail.ru</Default>
+</Parameter>
+
+<Parameter name="EMAILXLSPATH">
+<Description>
+Путь для временного XLS файла перед посылкой на почту</Description>
+<Default>/backup/temp/integ/</Default>
+</Parameter>
+
+<Parameter name="PATHCSPUI">
+<Description>
+Путь к приложению jQuery-UI</Description>
+<Default>/csp/log/jqueryui/</Default>
+</Parameter>
 
 <Parameter name="CSPURL">
 <Default>App.LogInfo.cls</Default>
@@ -25,6 +68,157 @@ Get the detail pane info object</Description>
 <FormalSpec>pInstance:%CSP.Util.PageInstance</FormalSpec>
 <ReturnType>%CSP.Util.Pane</ReturnType>
 <Implementation><![CDATA[	quit ##class(App.LogInfoPane).%New()
+]]></Implementation>
+</Method>
+
+<Method name="ClearFields">
+<Description>
+Получить INPUT кнопку для очистки полей формы
+fields - имена полей через запятую
+w ##class(App.LogInfo).ClearFields("a,b")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>fields=""</FormalSpec>
+<Implementation><![CDATA[
+	;set res="<input type=button name='clearFields' id='clearFields' onclick=""#"" value=X title='Очистить поля'>"
+	set res="<span class='ui-icon ui-icon-trash' name='clearFields' id='clearFields' onclick=""#"" title='Очистить поля'></span>"
+	for f=1:1:$l(fields,",") {
+		continue:$p(fields,",",f)=""
+		s onclick=$g(onclick)_"try{document.getElementById('"_$p(fields,",",f)_"').value=''}catch(e){};"
+	}
+	quit $replace(res,"#",$g(onclick,"alert('Нет полей');"))
+]]></Implementation>
+</Method>
+
+<Method name="MarkRed">
+<Description>
+Пометить красным контекст в исходной строки
+Source - Исходная строка
+Mark - контекст для пометки через запятую
+w ##class(App.LogInfo).MarkRed("ssssazzzzbssss","a,b")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Source,Mark</FormalSpec>
+<Implementation><![CDATA[
+	set res=Source
+	for f=1:1:$l(Mark,",") {
+		continue:$p(Mark,",",f)=""
+		s res=$replace(res,$p(Mark,",",f),"<font color=red>"_$p(Mark,",",f)_"</font>")
+	}
+	quit res
+]]></Implementation>
+</Method>
+
+<Method name="IncludTags">
+<Description>
+Включить в строку обрамление тэга
+Source - Исходная строка
+Mark - контекст из фраз для вставки это список
+TagBeg, TagEnd - обрамление тэга для каждой фразы должен быть свой, список
+w ##class(App.LogInfo).IncludTags("ssssazzzzbssss","a,b",")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>Source,Mark,TagBeg,TagEnd</FormalSpec>
+<Implementation><![CDATA[
+	set res=Source
+	for f=1:1:$ll(Mark) {
+		continue:$lg(Mark,f)=""
+		s res=$replace(res,$lg(Mark,f),$lg(TagBeg,f)_$lg(Mark,f)_$lg(TagEnd,f))
+	}
+	quit res
+]]></Implementation>
+</Method>
+
+<Method name="GetInputXLSTags">
+<Description><![CDATA[
+Получить набор инпут элементов для выгрузки потока в ексель и посылки по почте
+w ##class(App.LogInfo).GetInputXLSTags()
+Выгрузить в XLS <input type="checkbox" name="exportXLS" id="exportXLS" #($s($g(exportXLS):"checked",1:""))#>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>exportXLS,exportXLSfile,exportXLSfileEmail</FormalSpec>
+<Implementation><![CDATA[
+ &html<
+ Выгрузить в XLS <input type="checkbox" name="exportXLS" id="exportXLS" >
+ В файл <input type="text" size=100 name="exportXLSfile" id="exportXLSfile" value="#($g(exportXLSfile))#">
+ и послать на <input placeholder="email@mail.com,email2@mail.com" type="text" size=50 name="exportXLSfileEmail" id="exportXLSfileEmail" value="#($g(exportXLSfileEmail))#">
+ >
+ quit ""
+]]></Implementation>
+</Method>
+
+<Method name="GetInputXLSTagsVal">
+<Description>
+Получить значения инпут элементов для выгрузки потока в ексель и посылки по почте
+d ##class(App.LogInfo).GetInputXLSTagsVal(.exportXLS, .exportXLSfile, .exportXLSfileEmail)</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>exportXLS,exportXLSfile,exportXLSfileEmail,SDNum</FormalSpec>
+<Implementation><![CDATA[
+	set exportXLSfile=%request.Get("exportXLSfile")
+	if exportXLSfile="" s exportXLSfile=..#EMAILXLSPATH_$zd($h,3)_"_"_$p($h,",",2)_".xls"
+	set exportXLS=%request.Get("exportXLS")["on"
+	set exportXLSfileEmail=%request.Get("exportXLSfileEmail")
+	if exportXLSfileEmail="" s exportXLSfileEmail=..#EMAILSUPPORT
+	set SDNum=%request.Get("SDNum")
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="SendEmail">
+<Description>
+Послать пользователю файл с сообщением
+w ##class(App.LogInfo).SendEmail("msw@test.ru", "Тест", "Тестовое сообщ", "/backup/temp/integ/2018-02-05_33720.xls")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>supportemail="",subj="",msg="",file=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+		set subj="Сервер : "_$zu(110)_", "_subj
+		set text="<html><head></head><body color=greay><h4>Здравствуйте пользователь "_supportemail_"</h4>"_
+		"<br><br>"_msg
+		set text=text_"</body></html>"
+		// support
+		if supportemail="" set supportemail=..#EMAILSUPPORT		
+		; Определение адреса
+		set email=supportemail //только 
+		
+		; Учетка для авторизации todo - ВЗЯТЬ из параметров
+		set authFrom=..#EMAILAUTH
+		set authFromPass=..#EMAILAUTHPASS
+		if file'="" {
+			if file["/" s slash="/"
+			else  s slash="\"
+			s path=$p(file,slash,1,*-1)
+			s file=$lb($p(file,slash,1,*-1)_"/",$p(file,slash,*))
+		}
+		set sc=##class(App.net).SendMail(..#EMAILSERVERIP,..#EMAILSERVERPORT, 0, 0, "", authFrom, authFromPass, supportemail, email_","_supportemail, subj, text,file)
+		if 'sc w !,"Ошибка "_$System.Status.DisplayError(sc) $$$AppLogTab("ERROR","()",$System.Status.DisplayError(sc))
+		else  w !,"Послано по адресу "_email $$$AppLogTab("INFO","()","Посылка на почту "_email_" файла "_file)
+		quit sc
+]]></Implementation>
+</Method>
+
+<Method name="GetInfoImg">
+<Description>
+w ##class(App.LogInfo).GetInfoImg("tools")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>code</FormalSpec>
+<Implementation><![CDATA[	quit "<a title='Перейти в панель инструментов и протоколирования' target=_new href=""App.LogInfo.cls?NSP="_$zu(5)_"&WHAT="_$zconvert("?","O","URL")_""">"_##class(App.LogInfo).GetImg(code)_"</a>"
+]]></Implementation>
+</Method>
+
+<Method name="GetImg">
+<Description>
+w ##class(App.LogInfo).GetImg("eis")</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>code</FormalSpec>
+<Implementation><![CDATA[
+	quit:code="help" "<span class='ui-icon ui-icon-help'></span>"
+	quit:code="tools" "<span class='ui-icon ui-icon-wrench'></span>" ;gear
+	quit:code="eis" "<span class='ui-icon ui-icon-cart'></span>"
+	quit:code="gis" "<span class='ui-icon ui-icon-home'></span>"
+	quit:code="z112" "<span class='ui-icon ui-icon-notice'></span>"
+	quit:code="asur" "<span class='ui-icon ui-icon-arrowthick-2-e-w'></span>"
+	quit:code="aisvh" "<span class='ui-icon ui-icon-clock'></span>"
+	quit:code="info" "<span class='ui-icon ui-icon-info'></span>"
+	quit:code="poll" "<span class='ui-icon ui-icon-check'></span>"
+	quit:code="uas" "<span class='ui-icon ui-icon-newwin'></span>"
+	quit ""
 ]]></Implementation>
 </Method>
 </Class>

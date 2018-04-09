@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+<Class name="App.Action">
+<Description>
+Выводить необходимые действия</Description>
+<ClassType/>
+<ProcedureBlock>1</ProcedureBlock>
+<Super>%CSP.Page</Super>
+<TimeCreated>64746,75062.988786</TimeCreated>
+
+<Method name="OnPage">
+<Description>
+Главный метод формирования содержимого страницы</Description>
+<ClassMethod>1</ClassMethod>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+ 	#dim %request as %CSP.Request
+ 	set nsp=%request.Get("NSP")
+	if nsp'="" try {zn nsp set NSpace=nsp } catch e {}
+	set NSpace=$zu(5)
+	set Method=%request.Get("Method")
+	if Method="ShowJson" {
+		set gn=%request.Get("Par")
+		try {
+			write "<pre>" write $g(@gn) write "</pre>" 
+		} catch e { w $ze }
+	}
+	quit $$$OK
+]]></Implementation>
+</Method>
+</Class>
+</Export>
